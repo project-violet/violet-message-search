@@ -1,4 +1,6 @@
 # Log Rank
+[Contains](##Contains)
+[Similar](##Similar)
 ## Contains
 ```
 {
