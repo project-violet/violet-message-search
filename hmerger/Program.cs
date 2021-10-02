@@ -42,6 +42,8 @@ namespace hmerger
                 {
                     foreach (var c in i["content"])
                     {
+                        var raw = c[0].Value<string>();
+                        if (raw.Length <= 1) continue;
                         var pp = Hangul.Disasm(c[0].Value<string>());
                         if (pp == "") continue;
 
