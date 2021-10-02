@@ -1,6 +1,6 @@
 # Log Rank
-[Contains](##Contains)
-[Similar](##Similar)
+[Contains](#Contains)
+[Similar](#Similar)
 ## Contains
 ```
 {

@@ -68,7 +68,7 @@ with open('README.md', 'w', encoding='UTF-8') as file:
     c = dict(sorted(contains.items(), key=lambda item: -item[1]))
     s = dict(sorted(similar.items(), key=lambda item: -item[1]))
     
-    file.write('# Log Rank\n## Contains\n```\n')
+    file.write('# Log Rank\n[Contains](#Contains)\n[Similar](#Similar)\n## Contains\n```\n')
     file.write(json.dumps(c, ensure_ascii=False, indent=4))
     file.write('\n```\n## Similar\n```\n')
     file.write(json.dumps(s, ensure_ascii=False, indent=4))
