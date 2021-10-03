@@ -50,7 +50,6 @@ def process(filename):
             else:
                 print('error')
 
-
 process('nohup-legacy.out')
 process('nohup.out')
 
@@ -59,17 +58,69 @@ def save(name, what):
     with open(name, 'w', encoding='UTF-8') as file:
         file.write(json.dumps(what, ensure_ascii=False, indent=4))
 
-    print(json.dumps(what, ensure_ascii=False, indent=4))
+    # print(json.dumps(what, ensure_ascii=False, indent=4))
 
 save('contains.json', contains)
 save('similar.json', similar)
 
-with open('README.md', 'w', encoding='UTF-8') as file:
-    c = dict(sorted(contains.items(), key=lambda item: -item[1]))
-    s = dict(sorted(similar.items(), key=lambda item: -item[1]))
-    
-    file.write('# Log Rank\n[Contains](#Contains)\n[Similar](#Similar)\n## Contains\n```\n')
-    file.write(json.dumps(c, ensure_ascii=False, indent=4))
-    file.write('\n```\n## Similar\n```\n')
-    file.write(json.dumps(s, ensure_ascii=False, indent=4))
-    file.write('\n```')
+def save_sorted_with_alphabet():
+    with open('SORT.md', 'w', encoding='UTF-8') as file:
+        c = dict(sorted(contains.items(), key=lambda item: item[0]))
+        s = dict(sorted(similar.items(), key=lambda item: item[0]))
+
+        file.write('# Log Rank (Sort)\n[Contains](#Contains)\n[Similar](#Similar)\n## Contains\n```\n')
+        file.write(json.dumps(c, ensure_ascii=False, indent=4))
+        file.write('\n```\n## Similar\n```\n')
+        file.write(json.dumps(s, ensure_ascii=False, indent=4))
+        file.write('\n```')
+
+save_sorted_with_alphabet()
+
+def create_readme():
+    with open('README.md', 'w', encoding='UTF-8') as file:
+        c = dict(sorted(contains.items(), key=lambda item: -item[1]))
+        s = dict(sorted(similar.items(), key=lambda item: -item[1]))
+
+        file.write('# Log Rank\n[Contains](#Contains)\n[Similar](#Similar)\n## Contains\n```\n')
+        file.write(json.dumps(c, ensure_ascii=False, indent=4))
+        file.write('\n```\n## Similar\n```\n')
+        file.write(json.dumps(s, ensure_ascii=False, indent=4))
+        file.write('\n```')
+
+create_readme()
+
+def save_sorted_with_alphabet_combine():
+    with open('SORT-COMBINE.md', 'w', encoding='UTF-8') as file:
+        combine = contains.copy()
+        
+        for k,v in similar.items():
+            if k in combine:
+                combine[k] += v
+            else:
+                combine[k] = v
+
+        c = dict(sorted(combine.items(), key=lambda item: item[0]))
+
+        file.write('# Log Rank (Sort-Combine)\n## Combine\n```\n')
+        file.write(json.dumps(c, ensure_ascii=False, indent=4))
+        file.write('\n```')
+
+save_sorted_with_alphabet_combine()
+
+def save_sorted_with_length_combine():
+    with open('SORT-LEN-COMBINE.md', 'w', encoding='UTF-8') as file:
+        combine = contains.copy()
+        
+        for k,v in similar.items():
+            if k in combine:
+                combine[k] += v
+            else:
+                combine[k] = v
+
+        c = dict(sorted(combine.items(), key=lambda item: -len(item[0])))
+
+        file.write('# Log Rank (Sort Length)\n## Combine\n```\n')
+        file.write(json.dumps(c, ensure_ascii=False, indent=4))
+        file.write('\n```')
+
+save_sorted_with_length_combine()
