@@ -19,7 +19,6 @@ namespace hmerger
             public int ArticleId { get; set; }
             public int Page { get; set; }
             public string Message { get; set; }
-            public string RawMessage { get; set; }
             public double Score { get; set; }
             public List<double> Rectangle { get; set; }
         }
@@ -51,7 +50,6 @@ namespace hmerger
                         {
                             ArticleId = id,
                             Page = Convert.ToInt32(page),
-                            // RawMessage = c[0].Value<string>(),
                             Message = pp,
                             Score = c[1].Value<double>(),
                             Rectangle = c[2].ToObject<List<double>>(),
@@ -59,7 +57,6 @@ namespace hmerger
                     }
                     page++;
                 }
-                // Console.WriteLine(x);
             }
 
             File.WriteAllText("merged.json", JsonConvert.SerializeObject(msgs));
