@@ -105,7 +105,22 @@ def save_sorted_with_alphabet_combine():
         file.write(json.dumps(c, ensure_ascii=False, indent=4))
         file.write('\n```')
 
+def save_sorted_with_alphabet_combine_json():
+    with open('SORT-COMBINE.json', 'w', encoding='UTF-8') as file:
+        combine = contains.copy()
+        
+        for k,v in similar.items():
+            if k in combine:
+                combine[k] += v
+            else:
+                combine[k] = v
+
+        c = sorted(combine.items(), key=lambda item: item[0])
+
+        file.write(json.dumps(list(map(lambda x: x[0],c)), ensure_ascii=False))
+
 save_sorted_with_alphabet_combine()
+save_sorted_with_alphabet_combine_json()
 
 def save_sorted_with_length_combine():
     with open('SORT-LEN-COMBINE.md', 'w', encoding='UTF-8') as file:
