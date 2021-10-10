@@ -17,6 +17,7 @@ jobs:
           python-version: '3.8'
       - name: Download
         run: | 
+          rm nohup.out
           wget -q ${{ secrets.MSGSERVERHOST }}
       - name: A
         run: |
@@ -24,6 +25,7 @@ jobs:
           git config --local user.email "violet.dev.master@gmail.com"
           git config --local user.name "violet-dev"
           git add *.md
+          git add nohup.out
           git commit -m "update job"
           git pull
       - name: Push
