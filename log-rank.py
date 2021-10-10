@@ -115,9 +115,9 @@ def save_sorted_with_alphabet_combine_json():
             else:
                 combine[k] = v
 
-        c = sorted(combine.items(), key=lambda item: item[0])
+        c = dict(sorted(combine.items(), key=lambda item: item[0]))
 
-        file.write(json.dumps(list(map(lambda x: x[0],c)), ensure_ascii=False))
+        file.write(json.dumps(c, ensure_ascii=False))
 
 save_sorted_with_alphabet_combine()
 save_sorted_with_alphabet_combine_json()
