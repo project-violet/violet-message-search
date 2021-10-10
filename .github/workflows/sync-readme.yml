@@ -26,6 +26,7 @@ jobs:
           git config --local user.name "violet-dev"
           git add *.md
           git add nohup.out
+          git add SORT-COMBINE.json
           git commit -m "update job"
           git pull
       - name: Push
