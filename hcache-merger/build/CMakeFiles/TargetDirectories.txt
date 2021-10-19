@@ -1,0 +1,3 @@
+/home/ubuntu/violet-message-search/hcache-merger/build/CMakeFiles/edit_cache.dir
+/home/ubuntu/violet-message-search/hcache-merger/build/CMakeFiles/rebuild_cache.dir
+/home/ubuntu/violet-message-search/hcache-merger/build/CMakeFiles/hcache-merger.dir
