@@ -35,7 +35,6 @@ namespace hmerger
                 var cacheFileName = "/home/ubuntu/htext-miner/cache/" + file.Split('/').Last() + ".cache";
                 if (File.Exists(cacheFileName))
                 {
-                    msgs.AddRange(JsonConvert.DeserializeObject<List<MessageInfo>>(File.ReadAllText(cacheFileName)));
                     continue;
                 }
                 
@@ -66,11 +65,7 @@ namespace hmerger
                     page++;
                 }
                 File.WriteAllText("/home/ubuntu/htext-miner/cache/" + file.Split('/').Last() + ".cache", JsonConvert.SerializeObject(mergedMessages));
-
-                msgs.AddRange(mergedMessages);
             }
-
-            File.WriteAllText("merged.json", JsonConvert.SerializeObject(msgs));
         }
 
         static List<JArray> Parse(string page)
