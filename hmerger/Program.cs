@@ -32,21 +32,29 @@ namespace hmerger
             foreach (var file in Directory.GetFiles("/home/ubuntu/htext-miner/result"))
             {
                 Console.WriteLine($"{++proc}/{len}");
+                var cacheFileName = "/home/ubuntu/htext-miner/cache/" + file.Split('/').Last() + ".cache";
+                if (File.Exists(cacheFileName))
+                {
+                    msgs.AddRange(JsonConvert.DeserializeObject<List<MessageInfo>>(File.ReadAllText(cacheFileName)));
+                    continue;
+                }
+                
                 var x = Merge(file);
                 var id = Convert.ToInt32(file.Split('/').Last().Split('.')[0]);
 
                 var page = 0;
 
+                var mergedMessages = new List<MessageInfo>();
                 foreach (var i in x)
                 {
                     foreach (var c in i["content"])
                     {
                         var raw = c[0].Value<string>();
                         if (raw.Length <= 1) continue;
-                        var pp = Hangul.Disasm(c[0].Value<string>());
+                        var pp = Hangul.Disasm(raw);
                         if (pp == "") continue;
 
-                        msgs.Add(new MessageInfo
+                        mergedMessages.Add(new MessageInfo
                         {
                             ArticleId = id,
                             Page = Convert.ToInt32(page),
@@ -57,6 +65,9 @@ namespace hmerger
                     }
                     page++;
                 }
+                File.WriteAllText("/home/ubuntu/htext-miner/cache/" + file.Split('/').Last() + ".cache", JsonConvert.SerializeObject(mergedMessages));
+
+                msgs.AddRange(mergedMessages);
             }
 
             File.WriteAllText("merged.json", JsonConvert.SerializeObject(msgs));
