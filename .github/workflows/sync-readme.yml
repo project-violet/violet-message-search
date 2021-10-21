@@ -24,6 +24,7 @@ jobs:
           python3 log-rank.py
           git config --local user.email "violet.dev.master@gmail.com"
           git config --local user.name "violet-dev"
+          git config --global pull.rebase false
           git add *.md
           git add nohup.out
           git add SORT-COMBINE.json
