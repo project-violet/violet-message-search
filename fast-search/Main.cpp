@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <ctime>
 #include <functional>
 #include <iostream>
@@ -82,10 +83,98 @@ extract_partial_contains(const Sentence1 &query, const Iterable &choices,
   return results;
 }
 
+template <typename Sentence1, typename Iterable,
+          typename Sentence2 = typename Iterable::value_type>
+std::vector<std::pair<Sentence2, rapidfuzz::percent>>
+extract_lcs(const Sentence1 &query, const Iterable &choices,
+                           const rapidfuzz::percent score_cutoff = 0.0) {
+  std::vector<std::pair<Sentence2, rapidfuzz::percent>> results(choices.size());
+  auto query_len = query.length();
+
+  auto scorer = rapidfuzz::fuzz::CachedRatio<Sentence1>(query);
+
+#pragma omp parallel for
+  for (std::size_t i = 0; i < choices.size(); ++i) {
+    auto s_len = choices[i]->message.length();
+    if (s_len < query_len) {
+      results[i] = std::make_pair(choices[i], 0.0);
+      continue;
+    }
+
+    double score = scorer.ratio(choices[i]->message, score_cutoff);
+
+    // s2길이 > s1길이 일때
+    // score값 - (s2길이 - s1길이)이 실질적인 score값임
+    // s2의 길이가 s1보다 1만큼 길면 score값이 무조건 1만큼 커지게됨
+    // 이걸 보정해주는게 (s2길이 - s2길이)임
+    double ed = (100 - score) / 100 * (query_len + s_len);
+    double lcs = (query_len + s_len - ed) / 2;
+
+    results[i] = std::make_pair(choices[i], lcs / query_len);
+  }
+
+  return results;
+}
+
+template <typename Sentence1, typename Iterable,
+          typename Sentence2 = typename Iterable::value_type>
+std::vector<std::pair<Sentence2, rapidfuzz::percent>>
+extract_regional_partial_contains(const Sentence1 &query,
+                                  const Iterable &choices,
+                                  const rapidfuzz::percent score_cutoff = 0.0) {
+  std::vector<std::pair<Sentence2, rapidfuzz::percent>> results(choices.size());
+  auto query_len = query.length();
+
+  auto scorer1 = rapidfuzz::fuzz::CachedRatio<Sentence1>(query);
+  auto scorer2 = rapidfuzz::fuzz::CachedPartialRatio<Sentence1>(query);
+
+#pragma omp parallel for
+  for (std::size_t i = 0; i < choices.size(); ++i) {
+    if (choices[i]->message.length() < query_len) {
+      results[i] = std::make_pair(choices[i], 0.0);
+      continue;
+    }
+    double score1 = scorer1.ratio(choices[i]->message, score_cutoff);
+    double score2 = scorer2.ratio(choices[i]->message, score_cutoff);
+
+    double score1_rev = (1 - score1 / 100) * (choices[i]->message + query_len);
+
+    results[i] = std::make_pair(choices[i], score2);
+  }
+
+  return results;
+}
+
+int lcs(char *x, char *y, int m, int n) {
+  int L[m + 1][n + 1];
+  int i, j;
+
+  for (i = 0; i <= m; i++)
+    for (j = 0; j <= n; j++)
+      if (i == 0 || j == 0)
+        L[i][j] = 0;
+      else if (x[i - 1] == y[j - 1])
+        L[i][j] = L[i - 1][j - 1] + 1;
+      else
+        L[i][j] = std::max(L[i - 1][j], L[i][j - 1]);
+
+  return L[m][n];
+}
+
+// std::vector<std::pair<std::string, double>>
+// extract_lcs_contains(const std::string &query,
+//                      const std::vector<MergedInfo *> &choices) {
+//   // generate inverse string map
+
+//   // calculate lcs
+// }
+
 std::map<std::string, std::string> cacheSimilar;
 std::map<std::string, int> cacheSimilarHit;
 std::map<std::string, std::string> cacheContains;
 std::map<std::string, int> cacheContainsHit;
+std::map<std::string, std::string> cacheLCS;
+std::map<std::string, int> cacheLCSHit;
 
 typedef struct _MergedInfo {
   int articleid;
@@ -159,6 +248,7 @@ void load_json() {
 
 std::mutex mutex_similar;
 std::mutex mutex_contains;
+std::mutex mutex_lcs;
 
 // https://stackoverflow.com/questions/997946/how-to-get-current-time-and-date-in-c
 const std::string currentDateTime() {
@@ -183,7 +273,7 @@ void route_similar(const httplib::Request &req, httplib::Response &res,
   }
 
   std::cout << "(" << currentDateTime() << ") similar: " << query.first.base()
-            << " | " << req.remote_addr << std::endl;
+            << " | " << std::endl;
 
   //
   //  HangulConverter가 wchar_t 기반으로 구현되어 있어서
@@ -256,7 +346,7 @@ void route_contains(const httplib::Request &req, httplib::Response &res,
   }
 
   std::cout << "(" << currentDateTime() << ") contains: " << query.first.base()
-            << " | " << req.remote_addr << std::endl;
+            << " | " << std::endl;
 
   auto search = std::string(query.first.base());
   wchar_t unicode[1024];
@@ -311,9 +401,103 @@ void route_contains(const httplib::Request &req, httplib::Response &res,
   res.set_content(json, "text/json");
 }
 
+void route_lcs(const httplib::Request &req, httplib::Response &res,
+                      bool use_cache = true, int count = 50) {
+  auto query = req.matches[1];
+
+  if (strlen(query.first.base()) == 0) {
+    res.set_content("", "text/json");
+    return;
+  }
+
+  std::cout << "(" << currentDateTime() << ") containsh: " << query.first.base()
+            << " | " << std::endl;
+
+  auto search = std::string(query.first.base());
+  wchar_t unicode[1024];
+  std::mbstowcs(unicode, query.first.base(), 1024);
+  char kor2engtypo[1024 * 3];
+  Utility::HangulConverter::total_disassembly(unicode, kor2engtypo);
+  auto target = std::string(kor2engtypo);
+
+  if (use_cache && cacheLCS.find(target) != cacheLCS.end()) {
+    mutex_lcs.lock();
+    cacheLCSHit.find(search)->second =
+        cacheLCSHit.find(search)->second + 1;
+    mutex_lcs.unlock();
+    res.set_content(cacheLCS.find(target)->second, "text/json");
+    return;
+  }
+
+  auto r = extract_lcs(target, m_infos);
+  std::sort(r.begin(), r.end(), [](auto first, auto second) -> bool {
+    if (first.second != second.second)
+      return first.second > second.second;
+    return first.first->message.length() < second.first->message.length();
+  });
+
+  std::stringstream result;
+  int m = 0;
+  result << "[";
+  for (auto i : r) {
+    result << "{";
+    result << "\"MatchScore\":\"" << i.second << "\",";
+    result << "\"Id\":" << i.first->articleid << ",";
+    result << "\"Page\":" << (int)i.first->page << ",";
+    result << "\"Correctness\":" << i.first->score << ",";
+    result << "\"Rect\":[" << i.first->rects[0] << "," << i.first->rects[1]
+           << "," << i.first->rects[2] << "," << i.first->rects[3] << "]";
+    result << "}";
+    if (m++ == count)
+      break;
+    result << ",";
+  }
+  result << "]";
+
+  std::string json(std::istreambuf_iterator<char>(result), {});
+
+  mutex_lcs.lock();
+  if (use_cache && cacheLCS.find(target) == cacheLCS.end()) {
+    cacheLCS.insert({target, json});
+    cacheLCSHit.insert({search, 0});
+  }
+  mutex_lcs.unlock();
+
+  res.set_content(json, "text/json");
+}
+
+void test() {
+  std::string s1("dbrrowkdRhfExrl");
+  std::string s2("dhwlddjdbrrowkdeornaudxoRhfEnrl");
+  auto r = rapidfuzz::fuzz::ratio(s1, s2);
+  auto pr = rapidfuzz::fuzz::partial_ratio(s1, s2);
+  // std::cout << r << std::endl;
+
+  // 7, 5
+  // 7-5-2
+
+  // s2길이 > s1길이 일때
+  // r값 - (s2길이 - s1길이)이 실질적인 r값임
+  // s2의 길이가 s1보다 1만큼 길면 r값이 무조건 1만큼 커지게됨
+  // 이걸 보정해주는게 (s2길이 - s2길이)임
+
+  std::cout << (100-r)/100*(s1.length() + s2.length()) << std::endl;
+
+    double ed = (100-r)/100*(s1.length() + s2.length());
+    double lcs = (s1.length() + s2.length() - ed) / 2;
+
+    std::cout << lcs << std::endl;
+    std::cout << lcs / (s1.length()) << std::endl;
+
+  // https://velog.io/@ausg/%ED%98%91%EC%97%85%EC%9D%84-%EC%9C%84%ED%95%B4-%EC%9E%85%EC%82%AC-%EC%9D%B4%EC%A0%84%EC%97%90-%EC%95%8C%EA%B3%A0%EA%B0%80%EB%A9%B4-%EC%A2%8B%EC%9D%84-%EA%B2%83%EB%93%A4
+  // std::cout << rapidfuzz::fuzz::WRatio("asdf", "aaaaaaaaaasdffff") << std::endl;
+}
+
 int main(int argc, char **argv) {
   setlocale(LC_ALL, "");
   std::wcout.imbue(std::locale(""));
+
+  // test();
 
   if (argc < 4) {
     std::cout << "fast-search binary\n";
@@ -346,14 +530,24 @@ int main(int argc, char **argv) {
                                           std::placeholders::_2, true, 15));
 
   //
+  //  /containsh/ 라우팅
+  //
+  svr.Get(R"(/lcs/(.*?))",
+          std::bind(route_lcs, std::placeholders::_1,
+                    std::placeholders::_2, true, 15));
+
+  //
   //  /<private-access-token>/*/ 라우팅
   //
   svr.Get("/" + token + R"(/similar/(.*?))",
           std::bind(route_similar, std::placeholders::_1, std::placeholders::_2,
-                    false, 50));
+                    false, 500));
   svr.Get("/" + token + R"(/contains/(.*?))",
           std::bind(route_contains, std::placeholders::_1,
-                    std::placeholders::_2, false, 50));
+                    std::placeholders::_2, false, 500));
+  svr.Get("/" + token + R"(/lcs/(.*?))",
+          std::bind(route_lcs, std::placeholders::_1,
+                    std::placeholders::_2, false, 500));
 
   //
   //  /rank 라우팅
@@ -367,6 +561,10 @@ int main(int argc, char **argv) {
 
     for (auto ss : cacheContainsHit) {
       result << "(contains) " << ss.first << ": " << ss.second << "\n";
+    }
+
+    for (auto ss : cacheLCS) {
+      result << "(lcs) " << ss.first << ": " << ss.second << "\n";
     }
 
     std::string json(std::istreambuf_iterator<char>(result), {});
