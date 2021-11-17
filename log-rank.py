@@ -50,6 +50,7 @@ def process(filename):
             else:
                 print('error')
 
+process('nohup-legacy4.out')
 process('nohup-legacy3.out')
 process('nohup-legacy.out')
 process('nohup.out')
