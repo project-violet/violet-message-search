@@ -55,6 +55,17 @@ process('nohup-legacy3.out')
 process('nohup-legacy.out')
 process('nohup.out')
 
+def apply_blacklist():
+    f = open('blacklist.txt', 'r', encoding="UTF-8")
+    lines = f.readlines()
+    f.close()
+
+    for line in lines:
+        del contains[line.strip()]
+        del similar[line.strip()]
+
+apply_blacklist()
+
 def save(name, what):
     what = dict(sorted(what.items(), key=lambda item: -item[1]))
     with open(name, 'w', encoding='UTF-8') as file:
