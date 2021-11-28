@@ -61,8 +61,10 @@ def apply_blacklist():
     f.close()
 
     for line in lines:
-        del contains[line.strip()]
-        del similar[line.strip()]
+        # del contains[line.strip()]
+        # del similar[line.strip()]
+        contains.pop(line.strip(), None)
+        similar.pop(line.strip(), None)
 
 apply_blacklist()
 
