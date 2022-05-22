@@ -14,6 +14,7 @@ for row in rows:
   typee = row[2]
   if typee == None:
     continue
+  typee = typee.replace(' ', '_')
   if not typee in typemap:
     typemap[typee] = typecount
     typecount += 1
@@ -25,6 +26,7 @@ for row in rows:
   tags: str = row[-8]
   if tags == None:
     continue
+  tags = tags.replace(' ', '_')
   for tag in list(filter(lambda x: x != '', tags.split('|'))):
     if not tag in tagmap:
       tagmap[tag] = tagcount
@@ -37,12 +39,12 @@ for row in rows:
   if row[2] == None:
     typee = -1
   else:
-    typee = typemap[row[2]]
+    typee = typemap[row[2].replace(' ', '_')]
   tags = row[-8]
   rtags = []
   if tags != None:
     for tag in list(filter(lambda x: x != '', tags.split('|'))):
-      rtags.append(tagmap[tag])
+      rtags.append(tagmap[tag.replace(' ', '_')])
   result.append({'id': articleid, 'type': typee, 'tags': rtags})
 
 conn.close()

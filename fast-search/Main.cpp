@@ -17,11 +17,13 @@
 #include <locale>
 #include <map>
 #include <mutex>
+#include <set>
 #include <sstream>
 #include <string>
 
 #include "Displant.h"
 #include "httplib.h"
+#include "json.hpp"
 #include "rapidfuzz/fuzz.hpp"
 #include "rapidfuzz/utils.hpp"
 #include "simdjson.h"
@@ -63,6 +65,10 @@ typedef struct _MergedInfo {
 //
 std::vector<MergedInfo *> m_infos;
 
+std::vector<std::tuple<int, int, std::set<int>>> m_db;
+std::map<std::string, int> m_tagmap;
+std::map<std::string, int> m_typemap;
+
 void load_json() {
   //
   //  merged.json 파일 로드
@@ -84,6 +90,45 @@ void load_json() {
 
     m_infos.push_back(MergedInfo::create(
         (int)id.value(), page.value(), std::string(msg), score.value(), rects));
+  }
+}
+
+void read_json(const char *fn, nlohmann::json& db) {
+  std::ifstream i(fn);
+  i >> db;
+}
+
+void load_database_json() {
+  nlohmann::json db;
+  read_json("db.json", db);
+  for (const auto &item : db) {
+    auto id = item["id"].get<int>();
+    auto type = item["type"].get<int>();
+
+    std::set<int> tags;
+    for (const auto &tag : item["tags"]) {
+      tags.insert(tag.get<int>());
+    }
+
+    m_db.push_back({id, type, tags});
+  }
+
+  nlohmann::json taginfo;
+  read_json("taginfo.json", taginfo);
+  for (const auto &item : taginfo.items()) {
+    auto tag = item.key();
+    auto num = item.value().get<int>();
+
+    m_tagmap[tag] = num;
+  }
+
+  nlohmann::json typeinfo;
+  read_json("typeinfo.json", typeinfo);
+  for (auto &item : typeinfo.items()) {
+    auto type = item.key();
+    auto num = item.value().get<int>();
+
+    m_typemap[type] = num;
   }
 }
 
@@ -224,7 +269,8 @@ extract_partial_contains(const std::string &query,
 }
 
 std::vector<std::pair<MergedInfo *, rapidfuzz::percent>>
-extract_lcs(const std::string &query, const std::vector<MergedInfo *> &choices) {
+extract_lcs(const std::string &query,
+            const std::vector<MergedInfo *> &choices) {
   std::vector<std::pair<MergedInfo *, rapidfuzz::percent>> results(
       choices.size());
   auto query_len = query.length();
@@ -311,6 +357,7 @@ int main(int argc, char **argv) {
     return 0;
   }
 
+  load_database_json();
   load_json();
 
   //
