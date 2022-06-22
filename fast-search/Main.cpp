@@ -23,7 +23,6 @@
 
 #include "Displant.h"
 #include "httplib.h"
-#include "json.hpp"
 #include "rapidfuzz/fuzz.hpp"
 #include "rapidfuzz/utils.hpp"
 #include "simdjson.h"
@@ -93,45 +92,6 @@ void load_json() {
   }
 }
 
-void read_json(const char *fn, nlohmann::json& db) {
-  std::ifstream i(fn);
-  i >> db;
-}
-
-void load_database_json() {
-  nlohmann::json db;
-  read_json("db.json", db);
-  for (const auto &item : db) {
-    auto id = item["id"].get<int>();
-    auto type = item["type"].get<int>();
-
-    std::set<int> tags;
-    for (const auto &tag : item["tags"]) {
-      tags.insert(tag.get<int>());
-    }
-
-    m_db.push_back({id, type, tags});
-  }
-
-  nlohmann::json taginfo;
-  read_json("taginfo.json", taginfo);
-  for (const auto &item : taginfo.items()) {
-    auto tag = item.key();
-    auto num = item.value().get<int>();
-
-    m_tagmap[tag] = num;
-  }
-
-  nlohmann::json typeinfo;
-  read_json("typeinfo.json", typeinfo);
-  for (auto &item : typeinfo.items()) {
-    auto type = item.key();
-    auto num = item.value().get<int>();
-
-    m_typemap[type] = num;
-  }
-}
-
 // https://stackoverflow.com/questions/997946/how-to-get-current-time-and-date-in-c
 const std::string currentDateTime() {
   time_t now = time(0);
@@ -145,15 +105,31 @@ const std::string currentDateTime() {
   return buf;
 }
 
+// std::string kor2Eng(const char* target) {
+//    //
+//    //  HangulConverter가 wchar_t 기반으로 구현되어 있어서
+//    //  utf-8 => unicode 해줘야함
+//    //
+//    wchar_t unicode[1024];
+//    std::mbstowcs(unicode, target, 1024);
+//    char kor2engtypo[1024 * 3];
+//    Utility::HangulConverter::total_disassembly(unicode, kor2engtypo);
+//    return std::string(kor2engtypo);
+//}
+
+std::wstring s2ws(const std::string &str) {
+  int size_needed =
+      MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+  std::wstring wstrTo(size_needed, 0);
+  MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0],
+                      size_needed);
+  return wstrTo;
+}
+
 std::string kor2Eng(const char *target) {
-  //
-  //  HangulConverter가 wchar_t 기반으로 구현되어 있어서
-  //  utf-8 => unicode 해줘야함
-  //
-  wchar_t unicode[1024];
-  std::mbstowcs(unicode, target, 1024);
+  auto search = s2ws(std::string(target));
   char kor2engtypo[1024 * 3];
-  Utility::HangulConverter::total_disassembly(unicode, kor2engtypo);
+  Utility::HangulConverter::total_disassembly(search.c_str(), kor2engtypo);
   return std::string(kor2engtypo);
 }
 
@@ -172,8 +148,9 @@ result2Json(const std::vector<std::pair<MergedInfo *, double>> &result,
     ss << "\"Rect\":[" << i.first->rects[0] << "," << i.first->rects[1] << ","
        << i.first->rects[2] << "," << i.first->rects[3] << "]";
     ss << "}";
-    if (m++ == count)
+    if (m == count || result.size() - 1 == m)
       break;
+    m++;
     ss << ",";
   }
   ss << "]";
@@ -189,16 +166,16 @@ void route_internal(const httplib::Request &req, httplib::Response &res,
                     Func &extractor) {
   auto query = req.matches[1];
 
-  if (strlen(query.first.base()) == 0) {
+  if (strlen(&*query.first) == 0) {
     res.set_content("", "text/json");
     return;
   }
 
-  std::cout << "(" << currentDateTime() << ") " << type << ": "
-            << query.first.base() << " | " << std::endl;
+  std::cout << "(" << currentDateTime() << ") " << type << ": " << &*query.first
+            << " | " << std::endl;
 
-  auto search = std::string(query.first.base());
-  auto target = kor2Eng(query.first.base());
+  auto search = std::string(&*query.first);
+  auto target = kor2Eng(&*query.first);
 
   if (use_cache && cache.find(target) != cache.end()) {
     lock.lock();
@@ -229,6 +206,48 @@ void route_internal(const httplib::Request &req, httplib::Response &res,
   res.set_content(json, "text/json");
 }
 
+template <class Func>
+void route_winternal(const httplib::Request &req, httplib::Response &res,
+                     bool use_cache, int count, const char *type,
+                     std::map<std::string, std::string> &cache,
+                     std::map<std::string, int> cache_hit, std::mutex &lock,
+                     Func &extractor) {
+  auto query1 = req.matches[1];
+  auto query2 = req.matches[2];
+
+  if (strlen(&*query1.first) == 0 || strlen(&*query2.first) == 0) {
+    res.set_content("", "text/json");
+    return;
+  }
+
+  std::cout << "(" << currentDateTime() << ") " << type << ": "
+            << &*query2.first << " | " << &*query1.first << std::endl;
+
+  auto search = std::string(&*query2.first);
+  auto target = kor2Eng(&*query2.first);
+
+  std::vector<MergedInfo *> search_target;
+  int target_id = atoi(&*query1.first);
+  for (auto &minfo : m_infos) {
+    if (minfo->articleid == target_id)
+      search_target.push_back(minfo);
+  }
+
+  std::vector<std::pair<MergedInfo *, double>> r =
+      extractor(target, search_target);
+
+  std::sort(r.begin(), r.end(), [](auto first, auto second) -> bool {
+    return first.second > second.second;
+  });
+
+  //
+  //  결과 출력
+  //
+  std::string json = result2Json(r, count);
+
+  res.set_content(json, "text/json");
+}
+
 std::vector<std::pair<MergedInfo *, rapidfuzz::percent>>
 extract_similar(const std::string &query,
                 const std::vector<MergedInfo *> &choices) {
@@ -238,7 +257,7 @@ extract_similar(const std::string &query,
   auto scorer = rapidfuzz::fuzz::CachedRatio<std::string>(query);
 
 #pragma omp parallel for
-  for (std::size_t i = 0; i < choices.size(); ++i) {
+  for (int i = 0; i < choices.size(); ++i) {
     double score = scorer.ratio(choices[i]->message, 0.0);
     results[i] = std::make_pair(choices[i], score);
   }
@@ -256,7 +275,7 @@ extract_partial_contains(const std::string &query,
   auto scorer = rapidfuzz::fuzz::CachedPartialRatio<std::string>(query);
 
 #pragma omp parallel for
-  for (std::size_t i = 0; i < choices.size(); ++i) {
+  for (int i = 0; i < choices.size(); ++i) {
     if (choices[i]->message.length() < query_len) {
       results[i] = std::make_pair(choices[i], 0.0);
       continue;
@@ -278,7 +297,7 @@ extract_lcs(const std::string &query,
   auto scorer = rapidfuzz::fuzz::CachedRatio<std::string>(query);
 
 #pragma omp parallel for
-  for (std::size_t i = 0; i < choices.size(); ++i) {
+  for (int i = 0; i < choices.size(); ++i) {
     auto s_len = choices[i]->message.length();
     if (s_len < query_len) {
       results[i] = std::make_pair(choices[i], 0.0);
@@ -313,7 +332,7 @@ extract_regional_partial_contains(const Sentence1 &query,
   auto scorer2 = rapidfuzz::fuzz::CachedPartialRatio<Sentence1>(query);
 
 #pragma omp parallel for
-  for (std::size_t i = 0; i < choices.size(); ++i) {
+  for (int i = 0; i < choices.size(); ++i) {
     if (choices[i]->message.length() < query_len) {
       results[i] = std::make_pair(choices[i], 0.0);
       continue;
@@ -341,6 +360,12 @@ inline void route_contains(const httplib::Request &req, httplib::Response &res,
                  cacheContainsHit, mutex_contains, extract_partial_contains);
 }
 
+inline void route_wcontains(const httplib::Request &req, httplib::Response &res,
+                            bool use_cache = true, int count = 50) {
+  route_winternal(req, res, use_cache, count, "wcontains", cacheContains,
+                  cacheContainsHit, mutex_contains, extract_partial_contains);
+}
+
 inline void route_lcs(const httplib::Request &req, httplib::Response &res,
                       bool use_cache = true, int count = 50) {
   route_internal(req, res, use_cache, count, "lcs", cacheLCS, cacheLCSHit,
@@ -357,7 +382,6 @@ int main(int argc, char **argv) {
     return 0;
   }
 
-  load_database_json();
   load_json();
 
   //
@@ -374,19 +398,26 @@ int main(int argc, char **argv) {
   //  /similar/ 라우팅
   //
   svr.Get(R"(/similar/(.*?))", std::bind(route_similar, std::placeholders::_1,
-                                         std::placeholders::_2, true, 15));
+                                         std::placeholders::_2, true, 1000));
 
   //
   //  /contains/ 라우팅
   //
   svr.Get(R"(/contains/(.*?))", std::bind(route_contains, std::placeholders::_1,
-                                          std::placeholders::_2, true, 15));
+                                          std::placeholders::_2, true, 1000));
+
+  //
+  //  /wcontains/ 라우팅
+  //
+  svr.Get(R"(/wcontains/(.*?)/(.*?))",
+          std::bind(route_wcontains, std::placeholders::_1,
+                    std::placeholders::_2, true, 1000));
 
   //
   //  /containsh/ 라우팅
   //
   svr.Get(R"(/lcs/(.*?))", std::bind(route_lcs, std::placeholders::_1,
-                                     std::placeholders::_2, true, 15));
+                                     std::placeholders::_2, true, 1000));
 
   //
   //  /<private-access-token>/*/ 라우팅
