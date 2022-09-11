@@ -49,15 +49,15 @@ namespace hmerger
             var len = Directory.GetFiles(srcPath).Length;
             var proc = 0;
 
-            foreach (var file in Directory.GetFiles(srcPath))
+            Parallel.ForEach(Directory.GetFiles(srcPath), file =>
             {
-                Console.WriteLine($"{++proc}/{len}");
+                Console.WriteLine($"{Interlocked.Increment(ref proc)}/{len}");
                 var cacheFileName = @$"{destPath}\{file.Split('\\').Last()}.cache";
                 if (File.Exists(cacheFileName))
                 {
-                    continue;
+                    return;
                 }
-                
+
                 var x = Merge(file);
                 var id = Convert.ToInt32(file.Split('\\').Last().Split('.')[0]);
 
@@ -71,7 +71,8 @@ namespace hmerger
                     {
                         var raw = c[0].Value<string>();
                         if (raw.Length <= 1) continue;
-                        var pp = Hangul.Disasm(raw);
+                        //var pp = Hangul.Disasm(raw);
+                        var pp = raw.ToLower();
                         if (pp == "") continue;
 
                         mergedMessages.Add(new MessageInfo
@@ -89,7 +90,8 @@ namespace hmerger
                 }
 
                 File.WriteAllText(cacheFileName, JsonConvert.SerializeObject(mergedMessages));
-            }
+            });
+
         }
 
         static List<JArray> Parse(string page)
