@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,27 +21,48 @@ namespace hmerger
             public string Message { get; set; }
             public double Score { get; set; }
             public List<double> Rectangle { get; set; }
+            public string MessageRaw { get; set; }
+        }
+
+
+        static List<int> makePageInvTable(int page_count)
+        {
+            var r = new List<String>();
+            for (int i = 1; i <= page_count; i++)
+                r.Add($"{i}");
+            r.Sort();
+
+            var x = Enumerable.Range(0, page_count).ToList();
+            for (int i = 0; i < page_count; i++)
+            {
+                x[i] = Convert.ToInt32(r[i]);
+            }
+
+            return x;
         }
 
         static void Main(string[] args)
         {
-            var msgs = new List<MessageInfo>();
-            var len = Directory.GetFiles("/home/ubuntu/htext-miner/result").Length;
+            const string srcPath = @"G:\Dev2\htext-miner-english\result";
+            const string destPath = @"G:\Dev2\htext-miner-english-cache";
+
+            var len = Directory.GetFiles(srcPath).Length;
             var proc = 0;
 
-            foreach (var file in Directory.GetFiles("/home/ubuntu/htext-miner/result"))
+            foreach (var file in Directory.GetFiles(srcPath))
             {
                 Console.WriteLine($"{++proc}/{len}");
-                var cacheFileName = "/home/ubuntu/htext-miner/cache/" + file.Split('/').Last() + ".cache";
+                var cacheFileName = @$"{destPath}\{file.Split('\\').Last()}.cache";
                 if (File.Exists(cacheFileName))
                 {
                     continue;
                 }
                 
                 var x = Merge(file);
-                var id = Convert.ToInt32(file.Split('/').Last().Split('.')[0]);
+                var id = Convert.ToInt32(file.Split('\\').Last().Split('.')[0]);
 
                 var page = 0;
+                //var itable = makePageInvTable(x.Count);
 
                 var mergedMessages = new List<MessageInfo>();
                 foreach (var i in x)
@@ -56,15 +77,18 @@ namespace hmerger
                         mergedMessages.Add(new MessageInfo
                         {
                             ArticleId = id,
-                            Page = Convert.ToInt32(page),
+                            //Page = itable[page] - 1,
+                            Page = page,
                             Message = pp,
                             Score = c[1].Value<double>(),
                             Rectangle = c[2].ToObject<List<double>>(),
+                            MessageRaw = raw,
                         });
                     }
                     page++;
                 }
-                File.WriteAllText("/home/ubuntu/htext-miner/cache/" + file.Split('/').Last() + ".cache", JsonConvert.SerializeObject(mergedMessages));
+
+                File.WriteAllText(cacheFileName, JsonConvert.SerializeObject(mergedMessages));
             }
         }
 
