@@ -59,7 +59,7 @@ process('nohup-legacy4.out')
 process('nohup-legacy3.out')
 process('nohup-legacy.out')
 process('nohup.out')
-process('nohup-v1.log')
+process('a.log')
 
 def apply_blacklist():
     f = open('blacklist.txt', 'r', encoding="UTF-8")
