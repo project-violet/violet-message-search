@@ -26,7 +26,7 @@ jobs:
           git config --local user.name "violet-dev"
           git config --global pull.rebase false
           git add *.md
-          git add nohup.out
+          git add nohup-v1.log
           git add SORT-COMBINE.json
           git commit -m "update job"
           git pull
