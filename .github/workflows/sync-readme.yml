@@ -19,6 +19,7 @@ jobs:
         run: | 
           rm -f nohup-v1.log
           wget -q ${{ secrets.MSGSERVERHOST }}
+          ls -alhS
       - name: A
         run: |
           python3 log-rank.py
