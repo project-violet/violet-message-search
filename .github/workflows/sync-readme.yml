@@ -17,7 +17,7 @@ jobs:
           python-version: '3.8'
       - name: Download
         run: | 
-          rm -f nohup-v1.log
+          rm -f a.log
           wget -q ${{ secrets.MSGSERVERHOST }}
           ls -alhS
       - name: A
@@ -27,7 +27,7 @@ jobs:
           git config --local user.name "violet-dev"
           git config --global pull.rebase false
           git add *.md
-          git add nohup-v1.log -f
+          git add a.log -f
           git add SORT-COMBINE.json
           git commit -m "update job"
           git pull
