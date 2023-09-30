@@ -108,7 +108,7 @@ def create_readme():
         file.write(json.dumps(s, ensure_ascii=False, indent=4))
         file.write('\n```')
 
-create_readme()
+# create_readme()
 
 def save_sorted_with_alphabet_combine():
     with open('SORT-COMBINE.md', 'w', encoding='UTF-8') as file:
